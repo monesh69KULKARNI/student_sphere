@@ -1,0 +1,29 @@
+/// Supabase Configuration Example
+/// 
+/// Copy this file to supabase_config.dart and fill in your credentials
+/// 
+/// Get your credentials from: https://app.supabase.com/project/YOUR_PROJECT/settings/api
+
+class SupabaseConfig {
+  // Your Supabase project URL
+  // Example: https://abcdefghijklmnop.supabase.co
+  static const String supabaseUrl = 'YOUR_SUPABASE_URL';
+  
+  // Your Supabase anon/public key
+  // Example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFiY2RlZmdoaWprbG1ub3AiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTY0NTk5OTk5OSwiZXhwIjoxOTYxNTc1OTk5fQ.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+  
+  // Storage bucket names (create these in Supabase Storage)
+  static const String bucketResources = 'resources';
+  static const String bucketProfileImages = 'profile-images';
+  static const String bucketEventImages = 'event-images';
+  
+  // Check if configuration is valid
+  static bool get isConfigured {
+    return supabaseUrl != 'YOUR_SUPABASE_URL' &&
+           supabaseAnonKey != 'YOUR_SUPABASE_ANON_KEY' &&
+           !supabaseUrl.contains('YOUR_') &&
+           !supabaseAnonKey.contains('YOUR_');
+  }
+}
+

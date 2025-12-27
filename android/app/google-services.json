@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "208195672534",
+    "project_id": "studentsphere-6601a",
+    "storage_bucket": "studentsphere-6601a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:208195672534:android:6778222bdfe91de73bec77",
+        "android_client_info": {
+          "package_name": "com.example.student_sphere"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvdIDZFm921807rZ0y6RrZAZLC15ny6U8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
