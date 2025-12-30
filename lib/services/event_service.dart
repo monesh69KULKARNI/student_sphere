@@ -1,80 +1,144 @@
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/event.dart';
 
 class EventService {
-  static const String _eventsKey = 'events';
+  final supabase = Supabase.instance.client;
 
+  // FETCH user's own events
   Future<List<Event>> getEvents() async {
-    final prefs = await SharedPreferences.getInstance();
-    final eventsJson = prefs.getStringList(_eventsKey) ?? [];
-    return eventsJson.map((json) => Event.fromJson(jsonDecode(json))).toList();
+    try {
+      final response = await supabase
+          .from('events')
+          .select()
+          .eq('user_id', supabase.auth.currentUser!.id)
+          .order('created_at', ascending: false);
+
+      return response.map((json) => Event.fromJson(json)).toList();
+    } catch (e) {
+      print('Error fetching events: $e');
+      return [];
+    }
   }
 
+  // CREATE new event (NO image_url)
   Future<void> addEvent(Event event) async {
-    final events = await getEvents();
-    events.add(event);
-    await _saveEvents(events);
+    try {
+      await supabase.from('events').insert({
+        'title': event.title,
+        'description': event.description,
+        'date': event.date.toIso8601String(),
+        'location': event.location ?? '',
+        'user_id': supabase.auth.currentUser!.id,
+        'max_participants': event.maxParticipants ?? 10,
+        'registered_participants': [],
+      });
+    } catch (e) {
+      print('Error adding event: $e');
+      rethrow;
+    }
   }
 
+  // UPDATE event (NO image_url)
   Future<void> updateEvent(Event event) async {
-    final events = await getEvents();
-    final index = events.indexWhere((e) => e.id == event.id);
-    if (index != -1) {
-      events[index] = event;
-      await _saveEvents(events);
+    try {
+      await supabase
+          .from('events')
+          .update({
+        'title': event.title,
+        'description': event.description,
+        'date': event.date.toIso8601String(),
+        'location': event.location ?? '',
+        'max_participants': event.maxParticipants ?? 10,
+      })
+          .eq('id', event.id)
+          .eq('user_id', supabase.auth.currentUser!.id);
+    } catch (e) {
+      print('Error updating event: $e');
     }
   }
 
+  // DELETE event
   Future<void> deleteEvent(String eventId) async {
-    final events = await getEvents();
-    events.removeWhere((e) => e.id == eventId);
-    await _saveEvents(events);
+    try {
+      await supabase
+          .from('events')
+          .delete()
+          .eq('id', eventId)
+          .eq('user_id', supabase.auth.currentUser!.id);
+    } catch (e) {
+      print('Error deleting event: $e');
+    }
   }
 
+  // REGISTER for event
   Future<bool> registerForEvent(String eventId, String studentId) async {
-    final events = await getEvents();
-    final event = events.firstWhere((e) => e.id == eventId);
-    
-    if (event.isFull || event.registeredParticipants.contains(studentId)) {
+    try {
+      final eventData = await supabase
+          .from('events')
+          .select('registered_participants, max_participants')
+          .eq('id', eventId)
+          .maybeSingle();
+
+      if (eventData == null) return false;
+
+      List<String> participants = [];
+      final rawParticipants = eventData['registered_participants'] ?? [];
+
+      if (rawParticipants is List) {
+        participants = rawParticipants.map((e) => e.toString()).toList();
+      }
+
+      final maxParticipants = eventData['max_participants'] ?? 10;
+      if (participants.contains(studentId) || participants.length >= maxParticipants) {
+        return false;
+      }
+
+      participants.add(studentId);
+      await supabase
+          .from('events')
+          .update({'registered_participants': participants})
+          .eq('id', eventId);
+
+      return true;
+    } catch (e) {
+      print('Error registering: $e');
       return false;
     }
-
-    final updatedEvent = event.copyWith(
-      registeredParticipants: [...event.registeredParticipants, studentId],
-    );
-    
-    final index = events.indexWhere((e) => e.id == eventId);
-    events[index] = updatedEvent;
-    await _saveEvents(events);
-    return true;
   }
 
+  // UNREGISTER from event
   Future<bool> unregisterFromEvent(String eventId, String studentId) async {
-    final events = await getEvents();
-    final event = events.firstWhere((e) => e.id == eventId);
-    
-    if (!event.registeredParticipants.contains(studentId)) {
+    try {
+      final eventData = await supabase
+          .from('events')
+          .select('registered_participants')
+          .eq('id', eventId)
+          .maybeSingle();
+
+      if (eventData == null) return false;
+
+      List<String> participants = [];
+      final rawParticipants = eventData['registered_participants'] ?? [];
+
+      if (rawParticipants is List) {
+        participants = rawParticipants.map((e) => e.toString()).toList();
+      }
+
+      if (!participants.contains(studentId)) {
+        return false;
+      }
+
+      participants.remove(studentId);
+      await supabase
+          .from('events')
+          .update({'registered_participants': participants})
+          .eq('id', eventId);
+
+      return true;
+    } catch (e) {
+      print('Error unregistering: $e');
       return false;
     }
-
-    final updatedParticipants = List<String>.from(event.registeredParticipants)
-      ..remove(studentId);
-    
-    final updatedEvent = event.copyWith(
-      registeredParticipants: updatedParticipants,
-    );
-    
-    final index = events.indexWhere((e) => e.id == eventId);
-    events[index] = updatedEvent;
-    await _saveEvents(events);
-    return true;
-  }
-
-  Future<void> _saveEvents(List<Event> events) async {
-    final prefs = await SharedPreferences.getInstance();
-    final eventsJson = events.map((e) => jsonEncode(e.toJson())).toList();
-    await prefs.setStringList(_eventsKey, eventsJson);
   }
 }
-

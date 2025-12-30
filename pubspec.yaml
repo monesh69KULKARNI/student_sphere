@@ -55,7 +55,7 @@ dependencies:
   intl: ^0.19.0
   
   # File operations
-  file_picker: ^8.0.0
+  file_picker: ^8.3.6
   path_provider: ^2.1.1
   
   # UI & Navigation
