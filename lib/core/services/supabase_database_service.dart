@@ -5,7 +5,8 @@ import 'supabase_service.dart';
 class SupabaseDatabaseService {
   static SupabaseClient? get _client => SupabaseService.client;
 
-  // Users table operations
+  /* ───────────────────── USERS ───────────────────── */
+
   static Future<Map<String, dynamic>?> getUser(String uid) async {
     if (_client == null) return null;
     try {
@@ -14,7 +15,7 @@ class SupabaseDatabaseService {
           .select()
           .eq('uid', uid)
           .single();
-      return response as Map<String, dynamic>?;
+      return response as Map<String, dynamic>;
     } catch (e) {
       debugPrint('Error getting user: $e');
       return null;
@@ -23,305 +24,206 @@ class SupabaseDatabaseService {
 
   static Future<void> createUser(Map<String, dynamic> userData) async {
     if (_client == null) throw Exception('Supabase not initialized');
-    try {
-      await _client!.from('users').insert(userData);
-    } catch (e) {
-      debugPrint('Error creating user: $e');
-      rethrow;
-    }
+    await _client!.from('users').insert(userData);
   }
 
-  static Future<void> updateUser(String uid, Map<String, dynamic> updates) async {
+  static Future<void> updateUser(
+      String uid, Map<String, dynamic> updates) async {
     if (_client == null) throw Exception('Supabase not initialized');
-    try {
-      await _client!.from('users').update(updates).eq('uid', uid);
-    } catch (e) {
-      debugPrint('Error updating user: $e');
-      rethrow;
-    }
+    await _client!.from('users').update(updates).eq('uid', uid);
   }
 
-  // Events table operations
+  /* ───────────────────── EVENTS ───────────────────── */
+
+  /// REALTIME STREAM (filters applied in Dart)
   static Stream<List<Map<String, dynamic>>> getEventsStream({
     bool? isPublic,
     String? category,
     bool upcomingOnly = false,
   }) {
-    if (_client == null) {
-      return Stream.value([]);
-    }
+    if (_client == null) return Stream.value([]);
 
-    try {
-      var query = _client!.from('events').select();
+    return _client!
+        .from('events')
+        .stream(primaryKey: ['id'])
+        .map((data) {
+      var events = List<Map<String, dynamic>>.from(data);
 
-      // Build the query with all conditions
-      var finalQuery = _client!.from('events').select();
-      
       if (isPublic != null) {
-        finalQuery = finalQuery.eq('is_public', isPublic);
+        events =
+            events.where((e) => e['is_public'] == isPublic).toList();
       }
 
       if (category != null) {
-        finalQuery = finalQuery.eq('category', category);
+        events =
+            events.where((e) => e['category'] == category).toList();
       }
 
       if (upcomingOnly) {
-        finalQuery = finalQuery.gt('start_date', DateTime.now().toIso8601String());
+        final now = DateTime.now();
+        events = events.where((e) {
+          final start = DateTime.parse(e['start_date']);
+          return start.isAfter(now);
+        }).toList();
       }
 
-      // Apply ordering and return the stream
-      return finalQuery
-          .order('start_date')
-          .stream(primaryKey: ['id'])
-          .map((data) => List<Map<String, dynamic>>.from(data));
-    } catch (e) {
-      debugPrint('Error getting events stream: $e');
-      return Stream.value([]);
-    }
+      events.sort(
+            (a, b) => DateTime.parse(a['start_date'])
+            .compareTo(DateTime.parse(b['start_date'])),
+      );
+
+      return events;
+    });
   }
 
+  /// ONE-TIME FETCH
   static Future<List<Map<String, dynamic>>> getEvents({
     bool? isPublic,
     String? category,
     bool upcomingOnly = false,
   }) async {
     if (_client == null) return [];
-    try {
-      var query = _client!.from('events').select();
 
-      if (isPublic != null) {
-        query = query.eq('is_public', isPublic);
-      }
+    var query = _client!.from('events').select();
 
-      if (category != null) {
-        query = query.eq('category', category);
-      }
-
-      if (upcomingOnly) {
-        query = query.gt('start_date', DateTime.now().toIso8601String());
-      }
-
-      final orderedQuery = query.order('start_date');
-
-      final response = await orderedQuery;
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      debugPrint('Error getting events: $e');
-      return [];
+    if (isPublic != null) query = query.eq('is_public', isPublic);
+    if (category != null) query = query.eq('category', category);
+    if (upcomingOnly) {
+      query =
+          query.gt('start_date', DateTime.now().toIso8601String());
     }
+
+    final response = await query.order('start_date');
+    return List<Map<String, dynamic>>.from(response);
   }
 
-  static Future<Map<String, dynamic>?> getEvent(String eventId) async {
+  static Future<Map<String, dynamic>?> getEvent(String id) async {
     if (_client == null) return null;
     try {
-      final response = await _client!
-          .from('events')
-          .select()
-          .eq('id', eventId)
-          .single();
-      return response as Map<String, dynamic>?;
-    } catch (e) {
-      debugPrint('Error getting event: $e');
+      final response =
+      await _client!.from('events').select().eq('id', id).single();
+      return response as Map<String, dynamic>;
+    } catch (_) {
       return null;
     }
   }
 
-  static Future<String> createEvent(Map<String, dynamic> eventData) async {
-    if (_client == null) throw Exception('Supabase not initialized');
-    try {
-      final response = await _client!.from('events').insert(eventData).select().single();
-      return response['id'] as String;
-    } catch (e) {
-      debugPrint('Error creating event: $e');
-      rethrow;
-    }
+  static Future<String> createEvent(Map<String, dynamic> data) async {
+    final response =
+    await _client!.from('events').insert(data).select().single();
+    return response['id'];
   }
 
-  static Future<void> updateEvent(String eventId, Map<String, dynamic> updates) async {
-    if (_client == null) throw Exception('Supabase not initialized');
-    try {
-      updates['updated_at'] = DateTime.now().toIso8601String();
-      await _client!.from('events').update(updates).eq('id', eventId);
-    } catch (e) {
-      debugPrint('Error updating event: $e');
-      rethrow;
-    }
+  static Future<void> updateEvent(
+      String id, Map<String, dynamic> updates) async {
+    updates['updated_at'] = DateTime.now().toIso8601String();
+    await _client!.from('events').update(updates).eq('id', id);
   }
 
-  static Future<void> deleteEvent(String eventId) async {
-    if (_client == null) throw Exception('Supabase not initialized');
-    try {
-      await _client!.from('events').delete().eq('id', eventId);
-    } catch (e) {
-      debugPrint('Error deleting event: $e');
-      rethrow;
-    }
+  static Future<void> deleteEvent(String id) async {
+    await _client!.from('events').delete().eq('id', id);
   }
 
-  // Announcements table operations
+  /* ────────────────── ANNOUNCEMENTS ────────────────── */
+
   static Future<List<Map<String, dynamic>>> getAnnouncements({
     bool? isPublic,
     String? targetAudience,
   }) async {
     if (_client == null) return [];
-    try {
-      var query = _client!.from('announcements').select();
 
-      if (isPublic != null) {
-        query = query.eq('is_public', isPublic);
-      }
-
-      if (targetAudience != null) {
-        query = query.eq('target_audience', targetAudience);
-      }
-
-      final orderedQuery = query.order('created_at', ascending: false);
-
-      final response = await orderedQuery;
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      debugPrint('Error getting announcements: $e');
-      return [];
+    var query = _client!.from('announcements').select();
+    if (isPublic != null) query = query.eq('is_public', isPublic);
+    if (targetAudience != null) {
+      query = query.eq('target_audience', targetAudience);
     }
+
+    final response =
+    await query.order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
   }
 
-  static Future<String> createAnnouncement(Map<String, dynamic> announcementData) async {
-    if (_client == null) throw Exception('Supabase not initialized');
-    try {
-      final response = await _client!
-          .from('announcements')
-          .insert(announcementData)
-          .select()
-          .single();
-      return response['id'] as String;
-    } catch (e) {
-      debugPrint('Error creating announcement: $e');
-      rethrow;
-    }
+  static Future<String> createAnnouncement(
+      Map<String, dynamic> data) async {
+    final response = await _client!
+        .from('announcements')
+        .insert(data)
+        .select()
+        .single();
+    return response['id'];
   }
 
-  // Resources table operations
+  /* ───────────────────── RESOURCES ──────────────────── */
+
   static Future<List<Map<String, dynamic>>> getResources({
     String? category,
     String? subject,
     String? course,
   }) async {
     if (_client == null) return [];
-    try {
-      var query = _client!.from('resources').select();
 
-      if (category != null) {
-        query = query.eq('category', category);
-      }
+    var query = _client!.from('resources').select();
+    if (category != null) query = query.eq('category', category);
+    if (subject != null) query = query.eq('subject', subject);
+    if (course != null) query = query.eq('course', course);
 
-      if (subject != null) {
-        query = query.eq('subject', subject);
-      }
-
-      if (course != null) {
-        query = query.eq('course', course);
-      }
-
-      final orderedQuery = query.order('uploaded_at', ascending: false);
-
-      final response = await orderedQuery;
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      debugPrint('Error getting resources: $e');
-      return [];
-    }
+    final response =
+    await query.order('uploaded_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
   }
 
-  static Future<String> createResource(Map<String, dynamic> resourceData) async {
-    if (_client == null) throw Exception('Supabase not initialized');
-    try {
-      final response = await _client!
-          .from('resources')
-          .insert(resourceData)
-          .select()
-          .single();
-      return response['id'] as String;
-    } catch (e) {
-      debugPrint('Error creating resource: $e');
-      rethrow;
-    }
+  static Future<String> createResource(
+      Map<String, dynamic> data) async {
+    final response =
+    await _client!.from('resources').insert(data).select().single();
+    return response['id'];
   }
 
-  // Achievements table operations
-  static Future<List<Map<String, dynamic>>> getAchievements({String? studentId}) async {
+  /* ─────────────────── ACHIEVEMENTS ─────────────────── */
+
+  static Future<List<Map<String, dynamic>>> getAchievements({
+    String? studentId,
+  }) async {
     if (_client == null) return [];
-    try {
-      var query = _client!.from('achievements').select();
 
-      if (studentId != null) {
-        query = query.eq('student_id', studentId);
-      }
-
-      final orderedQuery = query.order('awarded_at', ascending: false);
-
-      final response = await orderedQuery;
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      debugPrint('Error getting achievements: $e');
-      return [];
+    var query = _client!.from('achievements').select();
+    if (studentId != null) {
+      query = query.eq('student_id', studentId);
     }
+
+    final response =
+    await query.order('awarded_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
   }
 
-  static Future<String> createAchievement(Map<String, dynamic> achievementData) async {
-    if (_client == null) throw Exception('Supabase not initialized');
-    try {
-      final response = await _client!
-          .from('achievements')
-          .insert(achievementData)
-          .select()
-          .single();
-      return response['id'] as String;
-    } catch (e) {
-      debugPrint('Error creating achievement: $e');
-      rethrow;
-    }
+  static Future<String> createAchievement(
+      Map<String, dynamic> data) async {
+    final response =
+    await _client!.from('achievements').insert(data).select().single();
+    return response['id'];
   }
 
-  // Careers table operations
+  /* ───────────────────── CAREERS ───────────────────── */
+
   static Future<List<Map<String, dynamic>>> getCareers({
     String? type,
     bool? isActive,
   }) async {
     if (_client == null) return [];
-    try {
-      var query = _client!.from('careers').select();
 
-      if (type != null) {
-        query = query.eq('type', type);
-      }
+    var query = _client!.from('careers').select();
+    if (type != null) query = query.eq('type', type);
+    if (isActive != null) query = query.eq('is_active', isActive);
 
-      if (isActive != null) {
-        query = query.eq('is_active', isActive);
-      }
-
-      final orderedQuery = query.order('posted_at', ascending: false);
-
-      final response = await orderedQuery;
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      debugPrint('Error getting careers: $e');
-      return [];
-    }
+    final response =
+    await query.order('posted_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
   }
 
-  static Future<String> createCareer(Map<String, dynamic> careerData) async {
-    if (_client == null) throw Exception('Supabase not initialized');
-    try {
-      final response = await _client!
-          .from('careers')
-          .insert(careerData)
-          .select()
-          .single();
-      return response['id'] as String;
-    } catch (e) {
-      debugPrint('Error creating career: $e');
-      rethrow;
-    }
+  static Future<String> createCareer(
+      Map<String, dynamic> data) async {
+    final response =
+    await _client!.from('careers').insert(data).select().single();
+    return response['id'];
   }
 }
-
