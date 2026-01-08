@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS events (
   image_url TEXT,
   is_public BOOLEAN DEFAULT TRUE,
   category TEXT DEFAULT 'general',
+  allowed_roles TEXT[] DEFAULT ARRAY['student', 'faculty', 'admin'], -- Who can register
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ
 );
@@ -126,6 +127,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_events_start_date ON events(start_date);
 CREATE INDEX IF NOT EXISTS idx_events_is_public ON events(is_public);
 CREATE INDEX IF NOT EXISTS idx_events_category ON events(category);
+CREATE INDEX IF NOT EXISTS idx_events_allowed_roles ON events USING GIN (allowed_roles);
 CREATE INDEX IF NOT EXISTS idx_announcements_created_at ON announcements(created_at);
 CREATE INDEX IF NOT EXISTS idx_announcements_is_public ON announcements(is_public);
 CREATE INDEX IF NOT EXISTS idx_resources_category ON resources(category);

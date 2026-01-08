@@ -14,7 +14,12 @@ class EventService {
           .eq('user_id', supabase.auth.currentUser!.id)
           .order('created_at', ascending: false);
 
-      return response.map((json) => Event.fromJson(json)).toList();
+      if (response is List) {
+        return response.map((json) => Event.fromJson(json)).toList();
+      } else {
+        print('Unexpected response type: ${response.runtimeType}');
+        return [];
+      }
     } catch (e) {
       print('Error fetching events: $e');
       return [];

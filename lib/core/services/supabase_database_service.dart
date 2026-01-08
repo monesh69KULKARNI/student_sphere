@@ -8,16 +8,25 @@ class SupabaseDatabaseService {
   /* ───────────────────── USERS ───────────────────── */
 
   static Future<Map<String, dynamic>?> getUser(String uid) async {
-    if (_client == null) return null;
+    if (_client == null) {
+      debugPrint('❌ Supabase client not initialized');
+      return null;
+    }
     try {
+      debugPrint('🔍 Querying Supabase for user with UID: $uid');
       final response = await _client!
           .from('users')
           .select()
           .eq('uid', uid)
           .single();
+      debugPrint('✅ User data found: ${response.keys}');
       return response as Map<String, dynamic>;
     } catch (e) {
-      debugPrint('Error getting user: $e');
+      debugPrint('❌ Error getting user: $e');
+      if (e.toString().contains('PGRST116')) {
+        debugPrint('💡 PGRST116 error means no rows found for the query');
+        debugPrint('💡 Check if user with UID $uid exists in the users table');
+      }
       return null;
     }
   }
@@ -47,7 +56,21 @@ class SupabaseDatabaseService {
         .from('events')
         .stream(primaryKey: ['id'])
         .map((data) {
-      var events = List<Map<String, dynamic>>.from(data);
+      // Supabase stream returns List<Map<String, dynamic>> directly
+      List<Map<String, dynamic>> events;
+      try {
+        if (data is List) {
+          events = List<Map<String, dynamic>>.from(
+            data.map((item) => item as Map<String, dynamic>),
+          );
+        } else {
+          debugPrint('Unexpected data type in stream: ${data.runtimeType}');
+          return <Map<String, dynamic>>[];
+        }
+      } catch (e) {
+        debugPrint('Error processing stream data: $e');
+        return <Map<String, dynamic>>[];
+      }
 
       if (isPublic != null) {
         events =
@@ -94,7 +117,12 @@ class SupabaseDatabaseService {
     }
 
     final response = await query.order('start_date');
-    return List<Map<String, dynamic>>.from(response);
+    if (response is List) {
+      return List<Map<String, dynamic>>.from(
+        response.map((item) => item as Map<String, dynamic>),
+      );
+    }
+    return [];
   }
 
   static Future<Map<String, dynamic>?> getEvent(String id) async {
@@ -140,7 +168,12 @@ class SupabaseDatabaseService {
 
     final response =
     await query.order('created_at', ascending: false);
-    return List<Map<String, dynamic>>.from(response);
+    if (response is List) {
+      return List<Map<String, dynamic>>.from(
+        response.map((item) => item as Map<String, dynamic>),
+      );
+    }
+    return [];
   }
 
   static Future<String> createAnnouncement(
@@ -169,7 +202,12 @@ class SupabaseDatabaseService {
 
     final response =
     await query.order('uploaded_at', ascending: false);
-    return List<Map<String, dynamic>>.from(response);
+    if (response is List) {
+      return List<Map<String, dynamic>>.from(
+        response.map((item) => item as Map<String, dynamic>),
+      );
+    }
+    return [];
   }
 
   static Future<String> createResource(
@@ -193,7 +231,12 @@ class SupabaseDatabaseService {
 
     final response =
     await query.order('awarded_at', ascending: false);
-    return List<Map<String, dynamic>>.from(response);
+    if (response is List) {
+      return List<Map<String, dynamic>>.from(
+        response.map((item) => item as Map<String, dynamic>),
+      );
+    }
+    return [];
   }
 
   static Future<String> createAchievement(
@@ -217,7 +260,12 @@ class SupabaseDatabaseService {
 
     final response =
     await query.order('posted_at', ascending: false);
-    return List<Map<String, dynamic>>.from(response);
+    if (response is List) {
+      return List<Map<String, dynamic>>.from(
+        response.map((item) => item as Map<String, dynamic>),
+      );
+    }
+    return [];
   }
 
   static Future<String> createCareer(

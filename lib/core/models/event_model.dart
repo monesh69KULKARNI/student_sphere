@@ -15,6 +15,7 @@ class EventModel {
   final String? imageUrl;
   final bool isPublic;
   final String category; // academic, cultural, sports, workshop, etc.
+  final List<String> allowedRoles; // Who can register: ['student', 'faculty', 'admin']
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -35,6 +36,7 @@ class EventModel {
     this.imageUrl,
     this.isPublic = true,
     required this.category,
+    required this.allowedRoles,
     required this.createdAt,
     this.updatedAt,
   });
@@ -57,6 +59,7 @@ class EventModel {
       'imageUrl': imageUrl,
       'isPublic': isPublic,
       'category': category,
+      'allowedRoles': allowedRoles,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
     };
@@ -80,6 +83,7 @@ class EventModel {
       imageUrl: map['imageUrl'] as String?,
       isPublic: map['isPublic'] as bool? ?? true,
       category: map['category'] as String? ?? 'general',
+      allowedRoles: List<String>.from(map['allowedRoles'] as List? ?? ['student', 'faculty', 'admin']),
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: map['updatedAt'] != null
           ? DateTime.parse(map['updatedAt'] as String)
@@ -94,5 +98,25 @@ class EventModel {
   bool get isUpcoming => startDate.isAfter(DateTime.now());
   bool get isOngoing => DateTime.now().isAfter(startDate) && DateTime.now().isBefore(endDate);
   bool get isPast => endDate.isBefore(DateTime.now());
+
+  // Check if a specific role is allowed to register
+  bool isRoleAllowed(String role) {
+    return allowedRoles.contains(role);
+  }
+
+  // Get display text for allowed roles
+  String get allowedRolesDisplay {
+    if (allowedRoles.length == 3) return 'All roles';
+    if (allowedRoles.length == 1) return allowedRoles.first.capitalize();
+    return allowedRoles.map((r) => r.capitalize()).join(' & ');
+  }
+}
+
+// Extension to capitalize strings
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return '${this[0].toUpperCase()}${substring(1).toLowerCase()}';
+  }
 }
 

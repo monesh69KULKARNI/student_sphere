@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../models/user_model.dart';
 import 'firebase_service.dart';
@@ -63,6 +64,8 @@ class AuthService {
     required String password,
   }) async {
     try {
+      debugPrint('🔐 Starting sign in for email: $email');
+      
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -70,26 +73,61 @@ class AuthService {
 
       final firebaseUser = userCredential.user;
       if (firebaseUser == null) {
-        throw Exception('Sign in failed');
+        throw Exception('Sign in failed: No Firebase user returned');
       }
 
+      debugPrint('✅ Firebase auth successful for UID: ${firebaseUser.uid}');
+
       // Get user data from Supabase
+      debugPrint('🔍 Fetching user data from Supabase for UID: ${firebaseUser.uid}');
       final userData = await SupabaseDatabaseService.getUser(firebaseUser.uid);
 
       if (userData == null) {
-        throw Exception('User data not found');
+        debugPrint('❌ User data not found in Supabase for UID: ${firebaseUser.uid}');
+        debugPrint('💡 Creating missing user record in Supabase...');
+        
+        // Create a basic user record in Supabase
+        final basicUserModel = UserModel(
+          uid: firebaseUser.uid,
+          email: firebaseUser.email ?? email,
+          name: firebaseUser.displayName ?? 'User',
+          role: UserRole.student, // Default role
+          createdAt: DateTime.now(),
+        );
+        
+        await SupabaseDatabaseService.createUser(_convertToSupabaseFormat(basicUserModel.toMap()));
+        debugPrint('✅ Created basic user record in Supabase');
+        
+        // Try fetching again
+        final newUserData = await SupabaseDatabaseService.getUser(firebaseUser.uid);
+        if (newUserData == null) {
+          throw Exception('Failed to create user profile. Please try again or contact support.');
+        }
+        
+        final userModel = UserModel.fromMap(_convertFromSupabaseFormat(newUserData));
+        debugPrint('✅ User profile created and loaded: ${userModel.name}');
+        
+        return userModel;
       }
 
+      debugPrint('✅ User data found in Supabase: ${userData['name']}');
       final userModel = UserModel.fromMap(_convertFromSupabaseFormat(userData));
 
       // Update last login
-      await SupabaseDatabaseService.updateUser(
-        firebaseUser.uid,
-        {'last_login': DateTime.now().toIso8601String()},
-      );
+      try {
+        await SupabaseDatabaseService.updateUser(
+          firebaseUser.uid,
+          {'last_login': DateTime.now().toIso8601String()},
+        );
+        debugPrint('✅ Last login updated in Supabase');
+      } catch (e) {
+        debugPrint('⚠️ Failed to update last login: $e');
+        // Don't fail the login for this
+      }
 
       return userModel;
     } catch (e) {
+      debugPrint('❌ Sign in failed: $e');
       throw Exception('Sign in failed: $e');
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/models/event_model.dart';
+import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/services/event_service.dart';
 
@@ -23,6 +24,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   bool _requiresVolunteers = false;
   int _maxVolunteers = 0;
   String _category = 'general';
+  
+  // Role restrictions
+  bool _allowStudents = true;
+  bool _allowFaculty = true;
+  bool _allowAdmin = false;
 
   @override
   void dispose() {
@@ -77,8 +83,22 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         return;
       }
 
+      // Validate that at least one role is selected
+      if (!_allowStudents && !_allowFaculty && !_allowAdmin) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select at least one role that can register')),
+        );
+        return;
+      }
+
       final user = context.read<AuthProvider>().currentUser;
       if (user == null) return;
+
+      // Build allowed roles list
+      final List<String> allowedRoles = [];
+      if (_allowStudents) allowedRoles.add('student');
+      if (_allowFaculty) allowedRoles.add('faculty');
+      if (_allowAdmin) allowedRoles.add('admin');
 
       final event = EventModel(
         id: const Uuid().v4(),
@@ -95,6 +115,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         requiresVolunteers: _requiresVolunteers,
         maxVolunteers: _maxVolunteers,
         category: _category,
+        allowedRoles: allowedRoles,
         createdAt: DateTime.now(),
       );
 
@@ -103,7 +124,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Event created successfully!')),
+            SnackBar(content: Text('Event "${event.title}" created successfully!')),
           );
         }
       } catch (e) {
@@ -215,6 +236,79 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     });
                   }
                 },
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Who can register for this event?',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      CheckboxListTile(
+                        title: const Text('Students'),
+                        subtitle: const Text('Allow students to register'),
+                        value: _allowStudents,
+                        onChanged: (value) {
+                          setState(() {
+                            _allowStudents = value ?? false;
+                          });
+                        },
+                      ),
+                      CheckboxListTile(
+                        title: const Text('Faculty'),
+                        subtitle: const Text('Allow faculty members to register'),
+                        value: _allowFaculty,
+                        onChanged: (value) {
+                          setState(() {
+                            _allowFaculty = value ?? false;
+                          });
+                        },
+                      ),
+                      CheckboxListTile(
+                        title: const Text('Admin'),
+                        subtitle: const Text('Allow admin users to register'),
+                        value: _allowAdmin,
+                        onChanged: (value) {
+                          setState(() {
+                            _allowAdmin = value ?? false;
+                          });
+                        },
+                      ),
+                      if (!_allowStudents && !_allowFaculty && !_allowAdmin)
+                        Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.warning, color: Colors.red[700], size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Please select at least one role that can register',
+                                  style: TextStyle(
+                                    color: Colors.red[700],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
               CheckboxListTile(
