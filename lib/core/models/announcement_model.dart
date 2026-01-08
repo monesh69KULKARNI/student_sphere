@@ -45,22 +45,40 @@ class AnnouncementModel {
   }
 
   factory AnnouncementModel.fromMap(Map<String, dynamic> map) {
-    return AnnouncementModel(
-      id: map['id'] as String,
-      title: map['title'] as String,
-      content: map['content'] as String,
-      authorId: map['authorId'] as String,
-      authorName: map['authorName'] as String,
-      createdAt: DateTime.parse(map['createdAt'] as String),
-      updatedAt: map['updatedAt'] != null
-          ? DateTime.parse(map['updatedAt'] as String)
-          : null,
-      isPublic: map['isPublic'] as bool? ?? true,
-      targetAudience: map['targetAudience'] as String?,
-      readBy: List<String>.from(map['readBy'] as List? ?? []),
-      priority: map['priority'] as String? ?? 'medium',
-      attachmentUrl: map['attachmentUrl'] as String?,
-    );
+    print('🔍 AnnouncementModel.fromMap()');
+    print('  Raw map keys: ${map.keys.toList()}');
+    print('  Raw map values: ${map.entries.map((e) => '${e.key}: ${e.value} (${e.value.runtimeType})').toList()}');
+    
+    try {
+      final announcement = AnnouncementModel(
+        id: map['id']?.toString() ?? '',
+        title: map['title']?.toString() ?? '',
+        content: map['content']?.toString() ?? '',
+        authorId: map['authorId']?.toString() ?? '',
+        authorName: map['authorName']?.toString() ?? '',
+        createdAt: map['createdAt'] != null
+            ? DateTime.parse(map['createdAt'] as String)
+            : DateTime.now(),
+        updatedAt: map['updatedAt'] != null
+            ? DateTime.parse(map['updatedAt'] as String)
+            : null,
+        isPublic: map['isPublic'] as bool? ?? true,
+        targetAudience: map['targetAudience']?.toString(),
+        readBy: (map['readBy'] as List?)?.map((e) => e.toString()).toList() ?? [],
+        priority: map['priority']?.toString() ?? 'medium',
+        attachmentUrl: map['attachmentUrl']?.toString(),
+      );
+      
+      print('  ✅ Successfully created AnnouncementModel');
+      return announcement;
+    } catch (e) {
+      print('  ❌ Error creating AnnouncementModel: $e');
+      print('  Problematic field values:');
+      map.forEach((key, value) {
+        print('    $key: $value (${value.runtimeType})');
+      });
+      rethrow;
+    }
   }
 
   bool isReadBy(String userId) => readBy.contains(userId);

@@ -58,6 +58,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
             label: 'Home',
           ),
           NavigationDestination(
+            icon: Icon(Icons.announcement_outlined),
+            selectedIcon: Icon(Icons.announcement),
+            label: 'Announcements',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.event_outlined),
             selectedIcon: Icon(Icons.event),
             label: 'Events',
@@ -177,10 +182,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
           },
         );
       case 1:
-        return const EventsListScreen();
+        return const AnnouncementsListScreen();
       case 2:
-        return const ResourcesListScreen();
+        return const EventsListScreen();
       case 3:
+        return const ResourcesListScreen();
+      case 4:
         return const CareersListScreen();
       default:
         return _StudentHomeView(
