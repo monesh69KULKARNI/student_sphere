@@ -265,19 +265,19 @@ class _StudentHomeView extends StatelessWidget {
                 icon: Icons.event,
                 title: 'Events',
                 color: Colors.blue,
-                onTap: () => onNavigate(1),
+                onTap: () => onNavigate(2),
               ),
               _QuickActionCard(
                 icon: Icons.folder,
                 title: 'Resources',
                 color: Colors.green,
-                onTap: () => onNavigate(2),
+                onTap: () => onNavigate(3),
               ),
               _QuickActionCard(
                 icon: Icons.work,
                 title: 'Careers',
                 color: Colors.orange,
-                onTap: () => onNavigate(3),
+                onTap: () => onNavigate(4),
               ),
               _QuickActionCard(
                 icon: Icons.emoji_events,

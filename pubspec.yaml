@@ -57,6 +57,8 @@ dependencies:
   # File operations
   file_picker: ^8.3.6
   path_provider: ^2.1.1
+  http: ^1.2.1
+  permission_handler: ^11.3.1
   
   # UI & Navigation
   go_router: ^14.2.7

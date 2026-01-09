@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../core/models/announcement_model.dart';
+import '../../core/models/user_model.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/services/announcement_service.dart';
 import 'create_announcement_screen.dart';
 
@@ -107,11 +110,14 @@ class _AnnouncementsListScreenState extends State<AnnouncementsListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().currentUser;
+    final canCreateAnnouncement = user?.role == UserRole.faculty || user?.role == UserRole.admin;
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.isPublicOnly ? 'Public Announcements' : 'Announcements'),
         actions: [
-          if (!widget.isPublicOnly)
+          if (!widget.isPublicOnly && canCreateAnnouncement)
             IconButton(
               icon: const Icon(Icons.add),
               onPressed: () {
