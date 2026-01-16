@@ -6,6 +6,7 @@ import '../resources/resources_list_screen.dart';
 import '../achievements/achievements_list_screen.dart';
 import '../careers/careers_list_screen.dart';
 import '../announcements/announcements_list_screen.dart';
+import '../chat/chat_list_screen.dart';
 import 'profile_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
@@ -71,6 +72,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
             icon: Icon(Icons.folder_outlined),
             selectedIcon: Icon(Icons.folder),
             label: 'Resources',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_outlined),
+            selectedIcon: Icon(Icons.chat),
+            label: 'Chat',
           ),
           NavigationDestination(
             icon: Icon(Icons.work_outline),
@@ -188,6 +194,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
       case 3:
         return const ResourcesListScreen();
       case 4:
+        return const ChatListScreen();
+      case 5:
         return const CareersListScreen();
       default:
         return _StudentHomeView(
