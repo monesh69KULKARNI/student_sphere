@@ -1,7 +1,10 @@
+
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:open_file/open_file.dart';
 import 'dart:io';
 import '../../core/models/resource_model.dart';
 import '../../core/services/resource_service.dart';
@@ -25,7 +28,7 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
     'all',
     'notes',
     'videos',
-    'pdfs', 
+    'pdfs',
     'slides',
     'other'
   ];
@@ -128,12 +131,12 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
   Future<void> _downloadResource(ResourceModel resource) async {
     try {
       debugPrint('🔄 Starting download for: ${resource.fileName}');
-      
+
       // Request storage permissions
       var status = await Permission.storage.status;
       if (!status.isGranted) {
         debugPrint('🔐 Requesting storage permission...');
-        
+
         // Try modern permission first (Android 10+)
         status = await Permission.manageExternalStorage.request();
         if (!status.isGranted) {
@@ -145,7 +148,37 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
         }
         debugPrint('✅ Storage permission granted');
       }
+
+      // Check if file already exists
+      final downloadsDir = Directory('/storage/emulated/0/Download');
+      final studentSphereDir = Directory('${downloadsDir.path}/StudentSphere');
+      final filesDir = Directory('${studentSphereDir.path}/Files');
+      final imagesDir = Directory('${studentSphereDir.path}/Images');
       
+      String filePath;
+      if (_isImageFile(resource.fileType)) {
+        filePath = '${imagesDir.path}/${resource.fileName}';
+      } else {
+        filePath = '${filesDir.path}/${resource.fileName}';
+      }
+
+      final existingFile = File(filePath);
+      if (await existingFile.exists()) {
+        debugPrint('📁 File already exists, opening directly: $filePath');
+        await _openFile(filePath, resource.fileType);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('File opened from storage'),
+              backgroundColor: Colors.blue,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+
       // Show loading indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -160,11 +193,10 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
       debugPrint('📥 Downloading from: ${resource.fileUrl}');
       final response = await http.get(Uri.parse(resource.fileUrl));
       debugPrint('📊 Response status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         // Create StudentSphere folder in Downloads
         debugPrint('📂 Getting external Downloads directory...');
-        final downloadsDir = Directory('/storage/emulated/0/Download');
         if (!await downloadsDir.exists()) {
           debugPrint('📁 Creating external Downloads directory...');
           await downloadsDir.create(recursive: true);
@@ -172,9 +204,8 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
         } else {
           debugPrint('ℹ️ External Downloads directory already exists');
         }
-        
+
         // Create StudentSphere main folder
-        final studentSphereDir = Directory('${downloadsDir.path}/StudentSphere');
         if (!await studentSphereDir.exists()) {
           debugPrint('📁 Creating StudentSphere folder...');
           await studentSphereDir.create(recursive: true);
@@ -183,14 +214,12 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
           debugPrint('ℹ️ StudentSphere folder already exists');
         }
         debugPrint('📂 StudentSphere directory: ${studentSphereDir.path}');
-        
-        String filePath;
+
         if (_isImageFile(resource.fileType)) {
           // Create Images subfolder in StudentSphere
           debugPrint('🖼️ Creating Images folder in StudentSphere...');
-          final imagesDir = Directory('${studentSphereDir.path}/Images');
           debugPrint('📂 Images directory path: ${imagesDir.path}');
-          
+
           if (!await imagesDir.exists()) {
             debugPrint('📁 Creating Images directory...');
             await imagesDir.create(recursive: true);
@@ -202,9 +231,8 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
         } else {
           // Create Files subfolder for other file types
           debugPrint('📄 Creating Files folder in StudentSphere...');
-          final filesDir = Directory('${studentSphereDir.path}/Files');
           debugPrint('📂 Files directory path: ${filesDir.path}');
-          
+
           if (!await filesDir.exists()) {
             debugPrint('📁 Creating Files directory...');
             await filesDir.create(recursive: true);
@@ -214,26 +242,29 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
           }
           filePath = '${filesDir.path}/${resource.fileName}';
         }
-        
+
         debugPrint('💾 Saving file to: $filePath');
-        
+
         // Save file
         final file = await File(filePath).writeAsBytes(response.bodyBytes);
         debugPrint('✅ File saved successfully: ${file.path}');
-        
+
         // Increment download count
         await ResourceService.incrementDownloadCount(resource.id);
-        
+
+        // Open the file after download
+        await _openFile(filePath, resource.fileType);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                _isImageFile(resource.fileType) 
-                  ? 'Image saved to StudentSphere/Images folder' 
-                  : 'File saved to StudentSphere/Files folder'
+                _isImageFile(resource.fileType)
+                  ? 'Image downloaded and opened'
+                  : 'File downloaded and opened'
               ),
               backgroundColor: Colors.green,
-              duration: const Duration(seconds: 4),
+              duration: const Duration(seconds: 3),
             ),
           );
         }
@@ -260,12 +291,125 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
     return isImage;
   }
 
+  Future<bool> _isFileAlreadyDownloaded(ResourceModel resource) async {
+    try {
+      final downloadsDir = Directory('/storage/emulated/0/Download');
+      final studentSphereDir = Directory('${downloadsDir.path}/StudentSphere');
+      final filesDir = Directory('${studentSphereDir.path}/Files');
+      final imagesDir = Directory('${studentSphereDir.path}/Images');
+      
+      String filePath;
+      if (_isImageFile(resource.fileType)) {
+        filePath = '${imagesDir.path}/${resource.fileName}';
+      } else {
+        filePath = '${filesDir.path}/${resource.fileName}';
+      }
+
+      final file = File(filePath);
+      return await file.exists();
+    } catch (e) {
+      debugPrint('❌ Error checking file existence: $e');
+      return false;
+    }
+  }
+
+  Future<void> _openFile(String filePath, String fileType) async {
+    try {
+      debugPrint('🔍 Attempting to open file: $filePath');
+      
+      final file = File(filePath);
+      if (!await file.exists()) {
+        debugPrint('❌ File does not exist: $filePath');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('File not found in storage'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Use open_file package which handles all the complexity
+      debugPrint('🚀 Opening file with open_file package');
+      final result = await OpenFile.open(filePath);
+      
+      debugPrint('📊 File open result: ${result.type}');
+      debugPrint('📊 File open message: ${result.message}');
+      
+      if (result.type == ResultType.done) {
+        debugPrint('✅ File opened successfully');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('File opened successfully'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else if (result.type == ResultType.fileNotFound) {
+        debugPrint('❌ File not found');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('File not found in storage'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else if (result.type == ResultType.noAppToOpen) {
+        debugPrint('❌ No app available to open this file type');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No app available to open ${fileType.toUpperCase()} files'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else if (result.type == ResultType.permissionDenied) {
+        debugPrint('❌ Permission denied');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permission denied to open file'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else {
+        debugPrint('❌ Failed to open file: ${result.message}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to open file: ${result.message}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error opening file: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening file: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showResourceDetails(ResourceModel resource) async {
     // Increment view count when opening details
     await ResourceService.incrementViewCount(resource.id);
-    
+
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -384,12 +528,24 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
+      backgroundColor: colorScheme.surfaceContainerLowest,
       appBar: AppBar(
-        title: const Text('Resources'),
+        backgroundColor: colorScheme.surface,
+        elevation: 0,
+        title: Text(
+          'Resources',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: const Icon(Icons.add_circle_outline),
             onPressed: () {
               Navigator.push(
                 context,
@@ -405,15 +561,22 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
         children: [
           // Search and Filter Section
           Container(
-            padding: const EdgeInsets.all(16),
+            color: colorScheme.surface,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
               children: [
                 // Search Bar
                 TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Search resources...',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    hintText: 'Search resources...',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    filled: true,
+                    fillColor: colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
                   onChanged: (value) {
                     setState(() {
@@ -421,38 +584,47 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
                     });
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 // Category Filter
-                Row(
-                  children: [
-                    const Text('Category: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: _categories.map((category) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: FilterChip(
-                                label: Text(category.toUpperCase()),
-                                selected: _filterCategory == category,
-                                onSelected: (selected) {
-                                  setState(() {
-                                    _filterCategory = category;
-                                  });
-                                  _loadResources();
-                                },
-                                backgroundColor: Colors.grey.shade200,
-                                selectedColor: _getCategoryColor(category).withValues(alpha: 0.3),
-                              ),
-                            );
-                          }).toList(),
+                SizedBox(
+                  height: 36,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _categories.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final category = _categories[index];
+                      final isSelected = _filterCategory == category;
+                      return FilterChip(
+                        label: Text(
+                          category.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            color: isSelected
+                              ? colorScheme.onSecondaryContainer
+                              : colorScheme.onSurface.withOpacity(0.7),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            _filterCategory = category;
+                          });
+                          _loadResources();
+                        },
+                        backgroundColor: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                        selectedColor: colorScheme.secondaryContainer,
+                        side: BorderSide(
+                          color: isSelected
+                            ? colorScheme.secondary.withOpacity(0.3)
+                            : Colors.transparent,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
@@ -468,18 +640,27 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.folder_outlined,
-                              size: 64,
-                              color: Colors.grey.shade400,
+                              Icons.folder_open_outlined,
+                              size: 80,
+                              color: colorScheme.onSurface.withOpacity(0.2),
                             ),
                             const SizedBox(height: 16),
                             Text(
                               _searchQuery.isNotEmpty || _filterCategory != 'all'
-                                  ? 'No resources found matching your criteria'
+                                  ? 'No resources found'
                                   : 'No resources available',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.grey.shade600,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.5),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _searchQuery.isNotEmpty || _filterCategory != 'all'
+                                  ? 'Try adjusting your filters'
+                                  : 'Be the first to share a resource',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.4),
                               ),
                             ),
                           ],
@@ -487,113 +668,13 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
                       )
                     : RefreshIndicator(
                         onRefresh: _loadResources,
-                        child: ListView.builder(
+                        child: ListView.separated(
                           padding: const EdgeInsets.all(16),
                           itemCount: _filteredResources.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 16),
                           itemBuilder: (context, index) {
                             final resource = _filteredResources[index];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.all(16),
-                                leading: Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: _getCategoryColor(resource.category).withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    _getFileIcon(resource.fileType),
-                                    color: _getCategoryColor(resource.category),
-                                  ),
-                                ),
-                                title: Text(
-                                  resource.title,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      resource.description,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.grey.shade700,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.person,
-                                          size: 14,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          resource.uploaderName,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Icon(
-                                          Icons.schedule,
-                                          size: 14,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          DateFormat('MMM dd').format(resource.uploadedAt),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                trailing: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: _getCategoryColor(resource.category),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        resource.category.toUpperCase(),
-                                        style: const TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      resource.fileSizeFormatted,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                onTap: () => _showResourceDetails(resource),
-                              ),
-                            );
+                            return _buildResourceCard(resource, theme, colorScheme);
                           },
                         ),
                       ),
@@ -602,5 +683,260 @@ class _ResourcesListScreenState extends State<ResourcesListScreen> {
       ),
     );
   }
-}
 
+  Widget _buildResourceCard(ResourceModel resource, ThemeData theme, ColorScheme colorScheme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Section
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _getCategoryColor(resource.category).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    _getFileIcon(resource.fileType),
+                    color: _getCategoryColor(resource.category),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        resource.uploaderName,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Text(
+                            DateFormat('MMM dd, yyyy').format(resource.uploadedAt),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurface.withOpacity(0.5),
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _getCategoryColor(resource.category).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              resource.category.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _getCategoryColor(resource.category),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_horiz, size: 20),
+                  onPressed: () => _showResourceDetails(resource),
+                  color: colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ],
+            ),
+          ),
+
+          // Content Section
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  resource.title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                    letterSpacing: -0.3,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  resource.description,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.7),
+                    height: 1.5,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+
+          // Metadata Section
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                _buildMetaChip(
+                  icon: Icons.school_outlined,
+                  label: resource.subject,
+                  colorScheme: colorScheme,
+                ),
+                _buildMetaChip(
+                  icon: Icons.book_outlined,
+                  label: resource.course,
+                  colorScheme: colorScheme,
+                ),
+                _buildMetaChip(
+                  icon: Icons.storage_outlined,
+                  label: resource.fileSizeFormatted,
+                  colorScheme: colorScheme,
+                ),
+              ],
+            ),
+          ),
+
+          // Stats Section
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                _buildStatItem(
+                  icon: Icons.visibility_outlined,
+                  count: resource.viewCount,
+                  colorScheme: colorScheme,
+                ),
+                const SizedBox(width: 16),
+                _buildStatItem(
+                  icon: Icons.download_outlined,
+                  count: resource.downloadCount,
+                  colorScheme: colorScheme,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+
+          // Download Button Section
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: FutureBuilder<bool>(
+              future: _isFileAlreadyDownloaded(resource),
+              builder: (context, snapshot) {
+                final isDownloaded = snapshot.data ?? false;
+                
+                return SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _downloadResource(resource),
+                    icon: Icon(
+                      isDownloaded ? Icons.open_in_new_rounded : Icons.download_rounded,
+                      size: 20,
+                    ),
+                    label: Text(
+                      isDownloaded ? 'Open' : 'Download',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isDownloaded ? Colors.blue : null,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetaChip({
+    required IconData icon,
+    required String label,
+    required ColorScheme colorScheme,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 14,
+          color: colorScheme.onSurface.withOpacity(0.5),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: colorScheme.onSurface.withOpacity(0.6),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required int count,
+    required ColorScheme colorScheme,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: colorScheme.onSurface.withOpacity(0.5),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          count.toString(),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface.withOpacity(0.7),
+          ),
+        ),
+      ],
+    );
+  }
+}

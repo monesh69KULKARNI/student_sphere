@@ -25,9 +25,9 @@ class StudentSphereApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ///  IMPORTANT: NO initialize(), NO manual auth setup here
+        ///  IMPORTANT: Initialize to restore user session
         ChangeNotifierProvider(
-          create: (_) => AuthProvider(),
+          create: (_) => AuthProvider()..initialize(),
         ),
       ],
       child: MaterialApp(

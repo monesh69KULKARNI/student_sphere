@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- External storage root -->
+    <external-path name="external_storage_root" path="." />
+    
+    <!-- External Downloads folder -->
+    <external-path name="external_downloads" path="Download/" />
+    
+    <!-- StudentSphere folder in Downloads -->
+    <external-path name="student_sphere" path="Download/StudentSphere/" />
+    
+    <!-- StudentSphere Files folder -->
+    <external-path name="student_sphere_files" path="Download/StudentSphere/Files/" />
+    
+    <!-- StudentSphere Images folder -->
+    <external-path name="student_sphere_images" path="Download/StudentSphere/Images/" />
+</paths>

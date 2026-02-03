@@ -9,6 +9,7 @@ import '../announcements/announcements_list_screen.dart';
 import '../announcements/create_announcement_screen.dart';
 import '../achievements/create_achievement_screen.dart';
 import '../careers/create_career_screen.dart';
+import 'faculty_profile_screen.dart';
 
 class FacultyDashboard extends StatefulWidget {
   const FacultyDashboard({super.key});
@@ -29,6 +30,15 @@ class _FacultyDashboardState extends State<FacultyDashboard> {
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_circle),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FacultyProfileScreen()),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.logout),
