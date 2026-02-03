@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/services/firebase_service.dart';
 import 'core/services/supabase_service.dart';
 import 'core/providers/auth_provider.dart';
+import 'providers/chat_provider.dart';
 import 'screens/auth/auth_wrapper.dart';
 
 void main() async {
@@ -28,6 +29,13 @@ class StudentSphereApp extends StatelessWidget {
         ///  IMPORTANT: Initialize to restore user session
         ChangeNotifierProvider(
           create: (_) => AuthProvider()..initialize(),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, ChatProvider>(
+          create: (context) => ChatProvider(),
+          update: (context, authProvider, chatProvider) {
+            chatProvider!.setAuthProvider(authProvider);
+            return chatProvider;
+          },
         ),
       ],
       child: MaterialApp(

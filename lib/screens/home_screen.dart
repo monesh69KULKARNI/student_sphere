@@ -6,6 +6,7 @@ import '../providers/note_provider.dart';
 import 'events/events_screen.dart';
 import 'volunteers/volunteers_screen.dart';
 import 'notes/notes_screen.dart';
+import 'chat/chat_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const EventsScreen(),
     const VolunteersScreen(),
     const NotesScreen(),
+    const ChatListScreen(),
   ];
 
   @override
@@ -67,6 +69,11 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icon(Icons.note_outlined),
             selectedIcon: Icon(Icons.note),
             label: 'Notes',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_outlined),
+            selectedIcon: Icon(Icons.chat),
+            label: 'Chat',
           ),
         ],
       ),
