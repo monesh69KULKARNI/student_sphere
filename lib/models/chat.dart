@@ -89,15 +89,15 @@ class ChatRoom {
 
   factory ChatRoom.fromJson(Map<String, dynamic> json) {
     return ChatRoom(
-      id: json['id'] as String,
-      name: json['name'] as String?,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Unnamed Chat',
       type: ChatType.values.firstWhere(
         (e) => e.name == json['type'],
         orElse: () => ChatType.direct,
       ),
-      createdBy: json['created_by'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdBy: json['created_by']?.toString() ?? '',
+      createdAt: DateTime.parse(json['created_at']?.toString() ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(json['updated_at']?.toString() ?? DateTime.now().toIso8601String()),
       participants: (json['participants'] as List<dynamic>?)
               ?.map((p) => ChatParticipant.fromJson(p as Map<String, dynamic>))
               .toList() ??
@@ -105,7 +105,7 @@ class ChatRoom {
       lastMessage: json['last_message'] != null
           ? Message.fromJson(json['last_message'] as Map<String, dynamic>)
           : null,
-      unreadCount: json['unread_count'] as int? ?? 0,
+      unreadCount: (json['unread_count'] as int?) ?? 0,
     );
   }
 }
@@ -143,11 +143,11 @@ class ChatParticipant {
 
   factory ChatParticipant.fromJson(Map<String, dynamic> json) {
     return ChatParticipant(
-      id: json['id'] as String,
-      chatRoomId: json['chat_room_id'] as String,
-      userId: json['user_id'] as String,
-      joinedAt: DateTime.parse(json['joined_at'] as String),
-      lastReadAt: DateTime.parse(json['last_read_at'] as String),
+      id: json['id'] as String? ?? '',
+      chatRoomId: json['chat_room_id'] as String? ?? '',
+      userId: json['user_id'] as String? ?? '',
+      joinedAt: DateTime.parse(json['joined_at'] as String? ?? DateTime.now().toIso8601String()),
+      lastReadAt: DateTime.parse(json['last_read_at'] as String? ?? DateTime.now().toIso8601String()),
       isAdmin: json['is_admin'] as bool? ?? false,
       user: json['user'] != null
           ? UserModel.fromMap(json['user'] as Map<String, dynamic>)
@@ -233,10 +233,10 @@ class Message {
 
   factory Message.fromJson(Map<String, dynamic> json) {
     return Message(
-      id: json['id'] as String,
-      chatRoomId: json['chat_room_id'] as String,
-      senderId: json['sender_id'] as String,
-      content: json['content'] as String,
+      id: json['id'] as String? ?? '',
+      chatRoomId: json['chat_room_id'] as String? ?? '',
+      senderId: json['sender_id'] as String? ?? '',
+      content: json['content'] as String? ?? '',
       type: MessageType.values.firstWhere(
         (e) => e.name == json['type'],
         orElse: () => MessageType.text,
@@ -250,9 +250,9 @@ class Message {
           : null,
       isEdited: json['is_edited'] as bool? ?? false,
       editedAt: json['edited_at'] != null
-          ? DateTime.parse(json['edited_at'] as String)
+          ? DateTime.parse(json['edited_at']?.toString() ?? '')
           : null,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: DateTime.parse(json['created_at'] as String? ?? DateTime.now().toIso8601String()),
       sender: json['sender'] != null
           ? UserModel.fromMap(json['sender'] as Map<String, dynamic>)
           : null,
@@ -287,10 +287,10 @@ class TypingIndicator {
 
   factory TypingIndicator.fromJson(Map<String, dynamic> json) {
     return TypingIndicator(
-      chatRoomId: json['chat_room_id'] as String,
-      userId: json['user_id'] as String,
-      isTyping: json['is_typing'] as bool,
-      lastUpdated: DateTime.parse(json['last_updated'] as String),
+      chatRoomId: json['chat_room_id']?.toString() ?? '',
+      userId: json['user_id']?.toString() ?? '',
+      isTyping: json['is_typing'] == true,
+      lastUpdated: DateTime.tryParse(json['last_updated']?.toString() ?? '') ?? DateTime.now(),
       user: json['user'] != null
           ? UserModel.fromMap(json['user'] as Map<String, dynamic>)
           : null,
@@ -332,23 +332,23 @@ class ChatUser extends UserModel {
 
   factory ChatUser.fromMap(Map<String, dynamic> map) {
     return ChatUser(
-      uid: map['uid'] as String,
-      email: map['email'] as String,
-      name: map['name'] as String,
-      role: UserRole.fromString(map['role'] as String? ?? 'guest'),
-      studentId: map['studentId'] as String?,
-      department: map['department'] as String?,
-      year: map['year'] as String?,
-      phone: map['phone'] as String?,
-      profileImageUrl: map['profileImageUrl'] as String?,
-      createdAt: DateTime.parse(map['createdAt'] as String),
+      uid: map['uid']?.toString() ?? '',
+      email: map['email']?.toString() ?? '',
+      name: map['name']?.toString() ?? 'Unknown',
+      role: UserRole.fromString(map['role']?.toString() ?? 'guest'),
+      studentId: map['studentId']?.toString(),
+      department: map['department']?.toString(),
+      year: map['year']?.toString(),
+      phone: map['phone']?.toString(),
+      profileImageUrl: map['profileImageUrl']?.toString(),
+      createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ?? DateTime.now(),
       lastLogin: map['lastLogin'] != null
-          ? DateTime.parse(map['lastLogin'] as String)
+          ? DateTime.tryParse(map['lastLogin']?.toString() ?? '')
           : null,
       additionalData: map['additionalData'] as Map<String, dynamic>?,
-      isOnline: map['is_online'] as bool? ?? false,
+      isOnline: map['is_online'] == true,
       lastSeen: map['last_seen'] != null
-          ? DateTime.parse(map['last_seen'] as String)
+          ? DateTime.tryParse(map['last_seen']?.toString() ?? '')
           : null,
     );
   }

@@ -81,18 +81,18 @@ class UserModel {
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
-      uid: map['uid'] as String,
-      email: map['email'] as String,
-      name: map['name'] as String,
-      role: UserRole.fromString(map['role'] as String? ?? 'guest'),
-      studentId: map['studentId'] as String?,
-      department: map['department'] as String?,
-      year: map['year'] as String?,
-      phone: map['phone'] as String?,
-      profileImageUrl: map['profileImageUrl'] as String?,
-      createdAt: DateTime.parse(map['createdAt'] as String),
+      uid: map['uid']?.toString() ?? '',
+      email: map['email']?.toString() ?? '',
+      name: map['name']?.toString() ?? 'Unknown',
+      role: UserRole.fromString(map['role']?.toString() ?? 'guest'),
+      studentId: map['studentId']?.toString(),
+      department: map['department']?.toString(),
+      year: map['year']?.toString(),
+      phone: map['phone']?.toString(),
+      profileImageUrl: map['profileImageUrl']?.toString(),
+      createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ?? DateTime.now(),
       lastLogin: map['lastLogin'] != null
-          ? DateTime.parse(map['lastLogin'] as String)
+          ? DateTime.tryParse(map['lastLogin']?.toString() ?? '')
           : null,
       additionalData: map['additionalData'] as Map<String, dynamic>?,
     );

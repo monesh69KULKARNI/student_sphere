@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../core/services/supabase_service.dart';
 import '../models/chat.dart';
 import '../core/models/user_model.dart';
@@ -8,10 +9,16 @@ import '../core/providers/auth_provider.dart';
 
 class ChatService {
   static final SupabaseClient? _supabase = SupabaseService.client;
+  static final _uuid = Uuid();
 
   // Get current user - this should be called with AuthProvider context
   static Future<UserModel?> getCurrentUser(AuthProvider authProvider) async {
     return authProvider.currentUser;
+  }
+
+  // Generate a valid UUID for chat operations
+  static String _generateChatId() {
+    return _uuid.v4();
   }
   // Get all chat rooms for the current user
   static Future<List<ChatRoom>> getChatRooms(AuthProvider authProvider) async {
@@ -24,6 +31,8 @@ class ChatService {
       if (currentUser == null) {
         throw Exception('User not authenticated');
       }
+
+      debugPrint('🔍 Fetching chat rooms for user: ${currentUser.uid}');
 
       // Get chat rooms where the user is a participant
       final response = await _supabase!
@@ -42,12 +51,22 @@ class ChatService {
           .eq('user_id', currentUser.uid);
 
       debugPrint('📱 Chat rooms response: ${response.length} rooms');
+      debugPrint('📱 Response data: $response');
 
       final List<ChatRoom> chatRooms = [];
 
       for (final participantData in response) {
-        final chatRoomData = participantData['chat_rooms'] as Map<String, dynamic>;
-        final chatRoomId = chatRoomData['id'] as String;
+        final room = participantData['chat_rooms'] as Map<String, dynamic>?;
+        
+        if (room == null) {
+          debugPrint('⚠️ Skipping room with null chat_rooms data');
+          continue;
+        }
+
+        final chatRoomId = room['id']?.toString() ?? '';
+
+        debugPrint('🏠 Processing chat room: $chatRoomId');
+        debugPrint('RAW ROOM MAP => $room');
 
         // Get participants for this chat room
         final participantsResponse = await _supabase!
@@ -63,15 +82,17 @@ class ChatService {
                 name,
                 email,
                 role,
-                studentId,
+                student_id,
                 department,
                 year,
                 phone,
-                profileImageUrl,
-                createdAt
+                profile_image_url,
+                created_at
               )
             ''')
             .eq('chat_room_id', chatRoomId);
+
+        debugPrint('👥 Participants for $chatRoomId: ${participantsResponse.length}');
 
         // Get last message for this chat room
         final lastMessageResponse = await _supabase!
@@ -93,25 +114,21 @@ class ChatService {
                 name,
                 email,
                 role,
-                studentId,
+                student_id,
                 department,
                 year,
                 phone,
-                profileImageUrl,
-                createdAt
+                profile_image_url,
+                created_at
               )
             ''')
             .eq('chat_room_id', chatRoomId)
             .order('created_at', ascending: false)
             .limit(1);
 
-        // Get unread count
-        final unreadCountResponse = await _supabase!
-            .rpc('get_unread_message_count', params: {
-              'p_chat_room_id': chatRoomId,
-              'p_user_id': currentUser.uid,
-            });
+        debugPrint('💬 Last message for $chatRoomId: ${lastMessageResponse.isNotEmpty ? 'found' : 'none'}');
 
+        // Convert to ChatRoom model
         // Create participants list
         final List<ChatParticipant> participants = participantsResponse
             .map((p) => ChatParticipant.fromJson({
@@ -132,34 +149,33 @@ class ChatService {
           });
         }
 
-        // Create chat room
-        final chatRoom = ChatRoom(
-          id: chatRoomData['id'] as String,
-          name: chatRoomData['name'] as String?,
-          type: chatRoomData['is_group_chat'] == true
-              ? ChatType.group
-              : ChatType.direct,
-          createdBy: chatRoomData['created_by'] as String,
-          createdAt: DateTime.parse(chatRoomData['created_at'] as String),
-          updatedAt: DateTime.parse(chatRoomData['updated_at'] as String),
-          participants: participants,
-          lastMessage: lastMessage,
-          unreadCount: unreadCountResponse as int? ?? 0,
-        );
-
-        chatRooms.add(chatRoom);
+        // Create chat room with safe parsing (YOUR FIX APPLIED)
+        try {
+          final chatRoom = ChatRoom(
+            id: room['id']?.toString() ?? '',
+            name: room['name']?.toString() ?? 'Unnamed Chat',
+            type: room['is_group_chat'] == true
+                ? ChatType.group
+                : ChatType.direct,
+            createdBy: room['created_by']?.toString() ?? '',
+            createdAt: DateTime.parse(room['created_at']?.toString() ?? DateTime.now().toIso8601String()),
+            updatedAt: DateTime.parse(room['updated_at']?.toString() ?? DateTime.now().toIso8601String()),
+            participants: participants,
+            lastMessage: lastMessage,
+            unreadCount: 0,
+          );
+          chatRooms.add(chatRoom);
+        } catch (e) {
+          debugPrint('❌ Error creating chat room: $e');
+          debugPrint('❌ Chat room fields: id=${room['id']}, name=${room['name']}, created_by=${room['created_by']}, created_at=${room['created_at']}, updated_at=${room['updated_at']}');
+          rethrow;
+        }
       }
 
-      // Sort by last message time or updated time
-      chatRooms.sort((a, b) {
-        final aTime = a.lastMessage?.createdAt ?? a.updatedAt;
-        final bTime = b.lastMessage?.createdAt ?? b.updatedAt;
-        return bTime.compareTo(aTime);
-      });
-
+      debugPrint('✅ Successfully loaded ${chatRooms.length} chat rooms');
       return chatRooms;
     } catch (e) {
-      debugPrint('❌ Error getting chat rooms: $e');
+      debugPrint('❌ Error loading chat rooms: $e');
       rethrow;
     }
   }
@@ -176,12 +192,54 @@ class ChatService {
         throw Exception('User not authenticated');
       }
 
-      final response = await _supabase!.rpc('get_or_create_direct_chat', params: {
-        'user1_id': currentUser.uid,
-        'user2_id': otherUserId,
+      // First, try to find existing direct chat between these users
+      // Get all chat rooms where current user is a participant
+      final currentUserChats = await _supabase!
+          .from('chat_participants')
+          .select('chat_room_id')
+          .eq('user_id', currentUser.uid);
+
+      // Get all chat rooms where other user is a participant
+      final otherUserChats = await _supabase!
+          .from('chat_participants')
+          .select('chat_room_id')
+          .eq('user_id', otherUserId);
+
+      // Find common chat rooms
+      final currentUserChatIds = currentUserChats.map((row) => row['chat_room_id']?.toString() ?? '').toSet();
+      final otherUserChatIds = otherUserChats.map((row) => row['chat_room_id']?.toString() ?? '').toSet();
+      final commonChatIds = currentUserChatIds.intersection(otherUserChatIds);
+
+      if (commonChatIds.isNotEmpty) {
+        return commonChatIds.first;
+      }
+
+      // Create new direct chat
+      final chatRoomId = _generateChatId();
+      
+      // Create chat room
+      await _supabase!.from('chat_rooms').insert({
+        'id': chatRoomId,
+        'is_group_chat': false,
+        'created_by': currentUser.uid,
       });
 
-      return response as String;
+      // Add both participants
+      // ✅ FIX: Remove duplicates using Set to prevent duplicate participant error
+      // This ensures currentUser.uid is only added once even if it's in participantIds
+      final uniqueParticipantIds = {currentUser.uid, otherUserId}.toList();
+      
+      debugPrint('👥 Adding ${uniqueParticipantIds.length} unique participants');
+      
+      final participants = uniqueParticipantIds.map((userId) => {
+            'chat_room_id': chatRoomId,
+            'user_id': userId,
+            'is_admin': userId == currentUser.uid,
+          }).toList();
+
+      await _supabase!.from('chat_participants').insert(participants);
+
+      return chatRoomId;
     } catch (e) {
       debugPrint('❌ Error getting/creating direct chat: $e');
       rethrow;
@@ -203,22 +261,27 @@ class ChatService {
         throw Exception('User not authenticated');
       }
 
-      // Create chat room
-      final chatRoomResponse = await _supabase!
+      // Generate a valid UUID for the chat room
+      final chatRoomId = _generateChatId();
+
+      // Create chat room with generated UUID
+      await _supabase!
           .from('chat_rooms')
           .insert({
+            'id': chatRoomId,
             'name': name,
             'is_group_chat': true,
             'created_by': currentUser.uid,
-          })
-          .select('id')
-          .single();
-
-      final chatRoomId = chatRoomResponse['id'] as String;
+          });
 
       // Add participants (including creator)
-      final allParticipantIds = [currentUser.uid, ...participantIds];
-      final participants = allParticipantIds.map((userId) => {
+      // ✅ FIX: Remove duplicates using Set to prevent duplicate participant error
+      // This ensures currentUser.uid is only added once even if it's in participantIds
+      final uniqueParticipantIds = {currentUser.uid, ...participantIds}.toList();
+      
+      debugPrint('👥 Adding ${uniqueParticipantIds.length} unique participants');
+      
+      final participants = uniqueParticipantIds.map((userId) => {
             'chat_room_id': chatRoomId,
             'user_id': userId,
             'is_admin': userId == currentUser.uid,
@@ -259,31 +322,12 @@ class ChatService {
               name,
               email,
               role,
-              studentId,
+              student_id,
               department,
               year,
               phone,
-              profileImageUrl,
-              createdAt
-            ),
-            reply_to_message:reply_to_id(
-              id,
-              sender_id,
-              content,
-              message_type,
-              created_at,
-              users!inner(
-                uid,
-                name,
-                email,
-                role,
-                studentId,
-                department,
-                year,
-                phone,
-                profileImageUrl,
-                createdAt
-              )
+              profile_image_url,
+              created_at
             )
           ''')
           .eq('chat_room_id', chatRoomId)
@@ -295,12 +339,6 @@ class ChatService {
                 ...m,
                 'chat_room_id': chatRoomId,
                 'sender': m['users'],
-                'reply_to_message': m['reply_to_message'] != null
-                    ? {
-                        ...m['reply_to_message'],
-                        'sender': m['reply_to_message']['users'],
-                      }
-                    : null,
               }))
           .cast<Message>()
           .toList();
@@ -364,12 +402,12 @@ class ChatService {
               name,
               email,
               role,
-              studentId,
+              student_id,
               department,
               year,
               phone,
-              profileImageUrl,
-              createdAt
+              profile_image_url,
+              created_at
             )
           ''')
           .single();
@@ -454,10 +492,14 @@ class ChatService {
         throw Exception('User not authenticated');
       }
 
-      await _supabase!.rpc('mark_messages_as_read', params: {
-        'p_chat_room_id': chatRoomId,
-        'p_user_id': currentUser.uid,
-      });
+      // ✅ FIX: Use direct query instead of RPC to avoid UUID type issues
+      await _supabase!
+          .from('chat_participants')
+          .update({
+            'last_read_at': DateTime.now().toIso8601String(),
+          })
+          .eq('chat_room_id', chatRoomId)
+          .eq('user_id', currentUser.uid);
 
       debugPrint('✅ Messages marked as read');
     } catch (e) {

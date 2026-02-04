@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/chat.dart';
 import '../../providers/chat_provider.dart';
+import '../../core/services/supabase_database_service.dart';
+import '../../core/models/user_model.dart';
 import 'chat_room_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
@@ -634,6 +636,7 @@ class UserSelectionDialog extends StatefulWidget {
 class _UserSelectionDialogState extends State<UserSelectionDialog> {
   bool _isLoading = false;
   String? _error;
+  List<Map<String, dynamic>> _users = [];
 
   @override
   Widget build(BuildContext context) {
@@ -641,7 +644,7 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
       title: const Text('Select User'),
       content: SizedBox(
         width: double.maxFinite,
-        height: 300,
+        height: 400,
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
@@ -660,35 +663,53 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
                       ],
                     ),
                   )
-                : Column(
-                    children: [
-                      // For demo purposes, just show some dummy users with valid UUIDs
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: 5,
-                          itemBuilder: (context, index) {
-                            // Generate valid UUIDs for dummy users
-                            final userIds = [
-                              '550e8400-e29b-41d4-a716-4466554400001', // User 1
-                              '550e8400-e29b-41d4-a716-4466554400002', // User 2
-                              '550e8400-e29b-41d4-a716-4466554400003', // User 3
-                              '550e8400-e29b-41d4-a716-4466554400004', // User 4
-                              '550e8400-e29b-41d4-a716-4466554400005', // User 5
-                            ];
-                            final userId = userIds[index];
-                            return ListTile(
-                              leading: CircleAvatar(
-                                child: Text('${index + 1}'),
-                              ),
-                              title: Text('User ${index + 1}'),
-                              subtitle: Text('user${index + 1}@example.com'),
-                              onTap: () => _createDirectChat(userId),
-                            );
-                          },
+                : _users.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.people_outline, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text('No other users found'),
+                            Text('Be the first to add more users!', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          ],
                         ),
+                      )
+                    : ListView.builder(
+                        itemCount: _users.length,
+                        itemBuilder: (context, index) {
+                          final user = _users[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundImage: user['profile_image_url'] != null
+                                  ? CachedNetworkImageProvider(user['profile_image_url'])
+                                  : null,
+                              child: user['profile_image_url'] == null
+                                  ? Text(
+                                      user['name']?.isNotEmpty == true
+                                          ? user['name'][0].toUpperCase()
+                                          : 'U',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            title: Text(user['name'] ?? 'Unknown User'),
+                            subtitle: Text(user['email'] ?? ''),
+                            trailing: Text(
+                              user['role']?.toString().toUpperCase() ?? 'USER',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _getRoleColor(user['role']),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            onTap: () => _createDirectChat(user['uid']),
+                          );
+                        },
                       ),
-                    ],
-                  ),
       ),
       actions: [
         TextButton(
@@ -697,6 +718,19 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
         ),
       ],
     );
+  }
+
+  Color _getRoleColor(String? role) {
+    switch (role) {
+      case 'admin':
+        return Colors.red;
+      case 'faculty':
+        return Colors.purple;
+      case 'student':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
   }
 
   Future<void> _createDirectChat(String otherUserId) async {
@@ -742,14 +776,21 @@ class _UserSelectionDialogState extends State<UserSelectionDialog> {
       _error = null;
     });
 
-    // TODO: Implement actual user loading from your user service
-    // For now, we'll just use dummy data
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+    try {
+      final users = await SupabaseDatabaseService.getAllUsers();
+      if (mounted) {
+        setState(() {
+          _users = users;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load users: $e';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -778,6 +819,7 @@ class _GroupParticipantSelectionDialogState extends State<GroupParticipantSelect
   bool _isLoading = false;
   String? _error;
   final Set<String> _selectedParticipants = {};
+  List<Map<String, dynamic>> _users = [];
 
   @override
   void initState() {
@@ -811,49 +853,81 @@ class _GroupParticipantSelectionDialogState extends State<GroupParticipantSelect
                       ],
                     ),
                   )
-                : Column(
-                    children: [
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: 5,
-                          itemBuilder: (context, index) {
-                            // Generate valid UUIDs for dummy users
-                            final userIds = [
-                              '550e8400-e29b-41d4-a716-4466554400001', // User 1
-                              '550e8400-e29b-41d4-a716-4466554400002', // User 2
-                              '550e8400-e29b-41d4-a716-4466554400003', // User 3
-                              '550e8400-e29b-41d4-a716-4466554400004', // User 4
-                              '550e8400-e29b-41d4-a716-4466554400005', // User 5
-                            ];
-                            final userId = userIds[index];
-                            final isSelected = _selectedParticipants.contains(userId);
-                            return CheckboxListTile(
-                              value: isSelected,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  if (value == true) {
-                                    _selectedParticipants.add(userId);
-                                  } else {
-                                    _selectedParticipants.remove(userId);
-                                  }
-                                });
-                              },
-                              title: Text('User ${index + 1}'),
-                              subtitle: Text('user${index + 1}@example.com'),
-                              secondary: CircleAvatar(
-                                child: Text('${index + 1}'),
-                              ),
-                            );
-                          },
+                : _users.isEmpty
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.people_outline, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text('No other users found'),
+                            Text('Be the first to add more users!', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          ],
                         ),
+                      )
+                    : Column(
+                        children: [
+                          Expanded(
+                            child: ListView.builder(
+                              itemCount: _users.length,
+                              itemBuilder: (context, index) {
+                                final user = _users[index];
+                                final userId = user['uid'];
+                                final isSelected = _selectedParticipants.contains(userId);
+                                return CheckboxListTile(
+                                  value: isSelected,
+                                  onChanged: (bool? value) {
+                                    setState(() {
+                                      if (value == true) {
+                                        _selectedParticipants.add(userId);
+                                      } else {
+                                        _selectedParticipants.remove(userId);
+                                      }
+                                    });
+                                  },
+                                  secondary: CircleAvatar(
+                                    backgroundImage: user['profile_image_url'] != null
+                                        ? CachedNetworkImageProvider(user['profile_image_url'])
+                                        : null,
+                                    child: user['profile_image_url'] == null
+                                        ? Text(
+                                            user['name']?.isNotEmpty == true
+                                                ? user['name'][0].toUpperCase()
+                                                : 'U',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(user['name'] ?? 'Unknown User'),
+                                      ),
+                                      Text(
+                                        user['role']?.toString().toUpperCase() ?? 'USER',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: _getRoleColor(user['role']),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  subtitle: Text(user['email'] ?? ''),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${_selectedParticipants.length} participant${_selectedParticipants.length == 1 ? '' : 's'} selected',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${_selectedParticipants.length} participant${_selectedParticipants.length == 1 ? '' : 's'} selected',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
       ),
       actions: [
         TextButton(
@@ -871,20 +945,40 @@ class _GroupParticipantSelectionDialogState extends State<GroupParticipantSelect
     );
   }
 
+  Color _getRoleColor(String? role) {
+    switch (role) {
+      case 'admin':
+        return Colors.red;
+      case 'faculty':
+        return Colors.purple;
+      case 'student':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
   Future<void> _loadUsers() async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
-    // TODO: Implement actual user loading from your user service
-    // For now, we'll just use dummy data
-    await Future.delayed(const Duration(milliseconds: 500));
-    
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+    try {
+      final users = await SupabaseDatabaseService.getAllUsers();
+      if (mounted) {
+        setState(() {
+          _users = users;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load users: $e';
+          _isLoading = false;
+        });
+      }
     }
   }
 }

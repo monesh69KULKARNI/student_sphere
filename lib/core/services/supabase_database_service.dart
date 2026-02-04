@@ -42,6 +42,28 @@ class SupabaseDatabaseService {
     await _client!.from('users').update(updates).eq('uid', uid);
   }
 
+  static Future<List<Map<String, dynamic>>> getAllUsers() async {
+    if (_client == null) {
+      debugPrint('❌ Supabase client not initialized');
+      return [];
+    }
+    try {
+      debugPrint('🔍 Querying Supabase for all users');
+      final currentUserId = _client!.auth.currentUser?.id ?? '';
+      final response = await _client!
+          .from('users')
+          .select('uid, name, email, role, department, year, profile_image_url, created_at')
+          .neq('uid', currentUserId) // Exclude current user
+          .order('name');
+      
+      debugPrint('✅ Found ${response.length} users');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('❌ Error getting all users: $e');
+      return [];
+    }
+  }
+
   /* ───────────────────── EVENTS ───────────────────── */
 
   /// REALTIME STREAM (filters applied in Dart)
