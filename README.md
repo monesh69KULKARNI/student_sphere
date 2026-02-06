@@ -18,19 +18,20 @@ StudentSphere is a **full-scale, production-oriented Smart Campus Application** 
 - ✅ **Achievement & Recognition System**
 - ✅ **Career Guidance** (Internships, Jobs, Workshops)
 - ✅ **Role-Based Dashboards**
+- ✅ **Real-time Chat System** with group chats and direct messaging
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Flutter SDK (3.8.1 or higher)
 - Firebase project
-- Supabase account (optional, for file storage)
+- Supabase account (for chat backend)
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/monesh69KULKARNI/student_sphere.git
    cd student_sphere
    ```
 
@@ -48,7 +49,7 @@ StudentSphere is a **full-scale, production-oriented Smart Campus Application** 
      - `android/app/google-services.json`
      - `ios/Runner/GoogleService-Info.plist`
 
-4. **Supabase Setup (Optional)**
+4. **Supabase Setup** (Required for Chat)
    - Create a Supabase project at [Supabase](https://supabase.com/)
    - Get your project URL and anon key
    - Update `lib/core/services/supabase_service.dart`:
@@ -56,7 +57,7 @@ StudentSphere is a **full-scale, production-oriented Smart Campus Application** 
      static const String supabaseUrl = 'YOUR_SUPABASE_URL';
      static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
      ```
-   - Uncomment Supabase initialization in `lib/main.dart`
+   - Set up the required database tables (see `migrate_chat_to_text_ids.sql`)
 
 5. **Run the app**
    ```bash
@@ -82,7 +83,8 @@ lib/
 │   ├── resources/           # Resource sharing
 │   ├── announcements/       # Announcements
 │   ├── achievements/        # Achievements
-│   └── careers/             # Career opportunities
+│   ├── careers/             # Career opportunities
+│   └── chat/                # Chat system
 └── main.dart                # App entry point
 ```
 
@@ -91,7 +93,7 @@ lib/
 - Firebase Authentication for secure user management
 - Role-based access control (RBAC)
 - Firestore security rules (configure in Firebase Console)
-- Supabase Row Level Security (if using Supabase)
+- Supabase Row Level Security for chat data
 
 ## 🗄️ Database Structure
 
@@ -102,28 +104,12 @@ lib/
 - `resources` - Resource metadata
 - `achievements` - Student achievements
 - `careers` - Career opportunities
-- `messages` - Chat messages (future)
 
-### Firestore Security Rules Example
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId || 
-                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    match /events/{eventId} {
-      allow read: if resource.data.isPublic == true || request.auth != null;
-      allow create: if request.auth != null && 
-                      (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'faculty' ||
-                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-    }
-    // Add more rules as needed
-  }
-}
-```
+### Supabase Tables (Chat System)
+- `chat_rooms` - Chat room information
+- `chat_participants` - Chat room participants
+- `messages` - Chat messages
+- `typing_indicators` - Real-time typing status
 
 ## 🧪 Testing
 
@@ -146,15 +132,12 @@ flutter build appbundle --release
 flutter build ios --release
 ```
 
-## 🔮 Future Enhancements
+## 🔮 Recent Enhancements
 
-- [ ] Real-time chat functionality
-- [ ] Push notifications (FCM)
-- [ ] Calendar integration
-- [ ] Offline mode support
-- [ ] AI-powered recommendations
-- [ ] Analytics dashboard
-- [ ] Multi-institution support
+- ✅ **Real-time Chat System** - Group chats and direct messaging
+- ✅ **Null Safety Fixes** - Robust error handling throughout the app
+- ✅ **UUID Type Compatibility** - Fixed database type mismatches
+- ✅ **Duplicate Prevention** - Robust participant management in group chats
 
 ## 📄 License
 
